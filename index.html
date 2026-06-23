@@ -1140,25 +1140,28 @@ document.getElementById('q').addEventListener('keydown', function(e) {
 // PLAYER
 // ================================================================
 function openPlayer(anime) {
-  document.getElementById('dashboardView').style.display = 'none';
-  const playerView = document.getElementById('playerView');
-  playerView.classList.add('active');
-  playerView.style.display = 'flex';
-
-  document.getElementById('playerTitle').textContent = anime.title;
-  document.getElementById('playerAnimeTitle').textContent = anime.title;
-  const synopsis = anime.synopsis || 'Tidak ada sinopsis.';
-  document.getElementById('playerSynopsis').textContent = synopsis.length > 300 ? synopsis.slice(0, 300) + '...' : synopsis;
-  document.getElementById('playerScore').textContent = anime.score || 'N/A';
-  document.getElementById('playerYear').textContent = anime.year || '?';
-  document.getElementById('playerDuration').textContent = anime.duration || '?';
-
-  // Gunakan trailer dari MAL? Tidak tersedia, jadi fallback ke video contoh
-  const videoUrl = 'https://www.youtube.com/embed/dQw4w9WgXcQ';
-  document.getElementById('playerIframe').src = videoUrl;
-
-  const totalEp = anime.episodes || 12;
-  renderEpisodes(totalEp, videoUrl);
+    document.getElementById('dashboardView').style.display = 'none';
+    
+    const playerView = document.getElementById('playerView');
+    playerView.classList.add('active');
+    playerView.style.display = 'flex';
+    
+    document.getElementById('playerTitle').textContent = anime.title;
+    document.getElementById('playerAnimeTitle').textContent = anime.title;
+    
+    const synopsis = anime.synopsis || 'Tidak ada sinopsis.';
+    document.getElementById('playerSynopsis').textContent =
+        synopsis.length > 300 ? synopsis.slice(0, 300) + '...' : synopsis;
+    
+    document.getElementById('playerScore').textContent = anime.score || 'N/A';
+    document.getElementById('playerYear').textContent = anime.year || '?';
+    document.getElementById('playerDuration').textContent = anime.duration || '?';
+    
+    // Hilangkan Rick Roll
+    document.getElementById('playerIframe').src = '';
+    
+    const totalEp = anime.episodes || 12;
+    renderEpisodes(totalEp);
 }
 
 function closePlayer() {
@@ -1168,21 +1171,29 @@ function closePlayer() {
   document.getElementById('playerIframe').src = '';
 }
 
-function renderEpisodes(total, currentVideoUrl) {
-  const container = document.getElementById('episodeGrid');
-  container.innerHTML = '';
-  for (let i = 1; i <= total; i++) {
-    const btn = document.createElement('button');
-    btn.className = 'episode-btn';
-    if (i === 1 && currentVideoUrl) btn.classList.add('active-ep');
-    btn.innerHTML = `<i class="fas fa-play-circle"></i> Episode ${i}`;
-    btn.onclick = function() {
-      document.getElementById('playerIframe').src = currentVideoUrl || 'https://www.youtube.com/embed/dQw4w9WgXcQ';
-      document.querySelectorAll('.episode-btn').forEach(b => b.classList.remove('active-ep'));
-      this.classList.add('active-ep');
-    };
-    container.appendChild(btn);
-  }
+function renderEpisodes(total) {
+    const container = document.getElementById('episodeGrid');
+    container.innerHTML = '';
+    
+    for (let i = 1; i <= total; i++) {
+        const btn = document.createElement('button');
+        
+        btn.className = 'episode-btn';
+        btn.innerHTML = `<i class="fas fa-play-circle"></i> Episode ${i}`;
+        
+        btn.onclick = function() {
+            alert(
+                `Episode ${i} belum tersedia.\n\nMyAnimeList tidak menyediakan video streaming.`
+            );
+            
+            document.querySelectorAll('.episode-btn')
+                .forEach(b => b.classList.remove('active-ep'));
+            
+            this.classList.add('active-ep');
+        };
+        
+        container.appendChild(btn);
+    }
 }
 
 // ================================================================
