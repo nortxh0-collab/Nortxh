@@ -1012,266 +1012,227 @@
         <div class="bottom-spacer"></div>
     </div>
 
-    <script>
-        // ================================================================
-        //  KONFIGURASI API MYANIMELIST (v2)
-        // ================================================================
-        // Ganti dengan Client ID yang valid dari aplikasi MyAnimeList Anda.
-        const MAL_CLIENT_ID = 'd0de2342546903d013c1250fb4611616'; // Contoh, ganti jika perlu
+<script>
+// ================================================================
+// KONFIGURASI – API Proxy (Vercel)
+// ================================================================
+const API_BASE = '/api/mal'; // endpoint proxy
 
-        // Fungsi fetch dengan header Client ID dan error handling
-        async function malFetch(endpoint) {
-            const url = `https://api.myanimelist.net/v2${endpoint}`;
+// Fungsi fetch melalui proxy
+async function malFetch(endpoint) {
+  const url = `${API_BASE}?endpoint=${encodeURIComponent(endpoint)}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    let errorMsg = `HTTP ${response.status}`;
+    try {
+      const errData = await response.json();
+      if (errData.error) errorMsg = errData.error;
+      else if (errData.message) errorMsg = errData.message;
+    } catch (_) {}
+    throw new Error(errorMsg);
+  }
+  return await response.json();
+}
 
-            const response = await fetch(url, {
-                headers: {
-                    'X-MAL-CLIENT-ID': MAL_CLIENT_ID
-                }
-            });
+// ================================================================
+// RENDER ANIME GRID
+// ================================================================
+const grid = document.getElementById('animeGrid');
 
-            if (!response.ok) {
-                // Ambil pesan error dari response jika ada
-                let errorMsg = `HTTP ${response.status}`;
-                try {
-                    const errData = await response.json();
-                    if (errData.message) errorMsg = errData.message;
-                    else if (errData.error) errorMsg = errData.error;
-                } catch (_) {
-                    // ignore
-                }
-                throw new Error(errorMsg);
-            }
+function mapMALAnime(node) {
+  return {
+    id: node.id,
+    title: node.title,
+    score: node.mean || 'N/A',
+    episodes: node.num_episodes || 0,
+    year: node.start_date ? new Date(node.start_date).getFullYear() : '?',
+    duration: node.media_type || '?',
+    synopsis: node.synopsis || 'Tidak ada sinopsis.',
+    images: {
+      jpg: {
+        large_image_url: node.main_picture?.large || node.main_picture?.medium || ''
+      }
+    },
+    trailer: null
+  };
+}
 
-            return await response.json();
-        }
+function render(list) {
+  grid.innerHTML = '';
+  if (!list || list.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column:1/-1; text-align:center; padding:40px 0; color:rgba(255,255,255,0.2); font-family:'Share Tech Mono',monospace; font-size:13px;">
+        <i class="fas fa-search" style="font-size:28px; display:block; margin-bottom:12px; color:rgba(255,255,255,0.08);"></i>
+        Tidak ada hasil ditemukan.
+      </div>`;
+    return;
+  }
 
-        // ================================================================
-        //  RENDER ANIME GRID
-        // ================================================================
-        const grid = document.getElementById('animeGrid');
+  list.forEach(anime => {
+    const card = document.createElement('div');
+    card.className = 'anime-card';
+    const imgUrl = anime.images?.jpg?.large_image_url || 'https://via.placeholder.com/300x400/1a1a2e/333?text=No+Image';
+    const totalEp = anime.episodes || '?';
+    card.innerHTML = `
+      <img class="anime-img" src="${imgUrl}" alt="${anime.title}" onerror="this.src='https://via.placeholder.com/300x400/1a1a2e/333?text=Error'">
+      <div class="anime-info">
+        <h3>${anime.title}</h3>
+        <div class="meta-row">
+          <span class="score"><i class="fas fa-star"></i> ${anime.score || 'N/A'}</span>
+          <span class="episodes">${totalEp} eps</span>
+        </div>
+      </div>
+    `;
+    card.onclick = () => openPlayer(anime);
+    grid.appendChild(card);
+  });
+}
 
-        // Mapping response MAL ke struktur yang kita pakai
-        function mapMALAnime(node) {
-            return {
-                id: node.id,
-                title: node.title,
-                score: node.mean || 'N/A',
-                episodes: node.num_episodes || 0,
-                year: node.start_date ? new Date(node.start_date).getFullYear() : '?',
-                duration: node.media_type || '?',
-                synopsis: node.synopsis || 'Tidak ada sinopsis.',
-                images: {
-                    jpg: {
-                        large_image_url: node.main_picture?.large || node.main_picture?.medium || ''
-                    }
-                },
-                trailer: null // MAL API tidak menyediakan trailer
-            };
-        }
+// ================================================================
+// LOAD TOP ANIME
+// ================================================================
+async function loadTop() {
+  try {
+    const data = await malFetch('/anime/ranking?ranking_type=all&limit=8');
+    const animeList = data.data.map(item => mapMALAnime(item.node));
+    render(animeList);
+  } catch (e) {
+    console.error('MAL ERROR:', e);
+    // Fallback: tampilkan data dummy agar UI tidak kosong
+    const dummy = [
+      { node: { id: 1, title: 'Contoh Anime 1', mean: 8.5, num_episodes: 12, start_date: '2024-01-01', media_type: 'TV', synopsis: 'Sinopsis contoh.', main_picture: { large: '' } } },
+      { node: { id: 2, title: 'Contoh Anime 2', mean: 7.9, num_episodes: 24, start_date: '2023-07-01', media_type: 'Movie', synopsis: 'Sinopsis contoh 2.', main_picture: { large: '' } } }
+    ];
+    render(dummy.map(item => mapMALAnime(item.node)));
+    // Tampilkan pesan error di atas grid
+    const errorMsg = document.createElement('div');
+    errorMsg.style.cssText = 'grid-column:1/-1; text-align:center; color:#f87171; padding:10px; background:rgba(248,113,113,0.1); border-radius:8px; margin-bottom:10px;';
+    errorMsg.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Gagal memuat data dari MyAnimeList: ${e.message}. Menampilkan contoh.`;
+    grid.prepend(errorMsg);
+  }
+}
 
-        function render(list) {
-            grid.innerHTML = '';
-            if (!list || list.length === 0) {
-                grid.innerHTML = `
-                    <div style="grid-column:1/-1; text-align:center; padding:40px 0; color:rgba(255,255,255,0.2); font-family:'Share Tech Mono',monospace; font-size:13px;">
-                        <i class="fas fa-search" style="font-size:28px; display:block; margin-bottom:12px; color:rgba(255,255,255,0.08);"></i>
-                        Tidak ada hasil ditemukan.
-                    </div>`;
-                return;
-            }
-            list.forEach(anime => {
-                const card = document.createElement('div');
-                card.className = 'anime-card';
-                const imgUrl = anime.images?.jpg?.large_image_url ||
-                    'https://via.placeholder.com/300x400/1a1a2e/333?text=No+Image';
-                const totalEp = anime.episodes || '?';
-                card.innerHTML = `
-                    <img class="anime-img" src="${imgUrl}" alt="${anime.title}" onerror="this.src='https://via.placeholder.com/300x400/1a1a2e/333?text=Error'">
-                    <div class="anime-info">
-                        <h3>${anime.title}</h3>
-                        <div class="meta-row">
-                            <span class="score"><i class="fas fa-star"></i> ${anime.score || 'N/A'}</span>
-                            <span class="episodes">${totalEp} eps</span>
-                        </div>
-                    </div>
-                `;
-                card.onclick = () => openPlayer(anime);
-                grid.appendChild(card);
-            });
-        }
+// ================================================================
+// SEARCH
+// ================================================================
+async function searchAnime() {
+  const q = document.getElementById('q').value.trim();
+  if (!q) return loadTop();
+  try {
+    const data = await malFetch(`/anime?q=${encodeURIComponent(q)}&limit=8`);
+    const animeList = data.data.map(item => mapMALAnime(item.node));
+    render(animeList);
+  } catch (e) {
+    console.error('Search error:', e);
+    render([]);
+    grid.innerHTML = `
+      <div style="grid-column:1/-1; text-align:center; padding:20px 0; color:#f87171; font-size:13px;">
+        <i class="fas fa-exclamation-circle"></i> ${e.message || 'Gagal mencari anime.'}
+      </div>`;
+  }
+}
 
-        // ================================================================
-        //  LOAD TOP ANIME (MAL)
-        // ================================================================
-        async function loadTop() {
-            try {
-                const data = await malFetch('/anime/ranking?ranking_type=all&limit=8');
-                // data.data = [{ node: {...} }]
-                const animeList = data.data.map(item => mapMALAnime(item.node));
-                render(animeList);
-            } catch (e) {
-                console.error('MAL ERROR:', e);
-                grid.innerHTML = `
-                    <div style="grid-column:1/-1; text-align:center; padding:30px 0; color:#f87171;">
-                        <i class="fas fa-exclamation-triangle" style="font-size:24px; display:block; margin-bottom:10px;"></i>
-                        Gagal memuat data dari MyAnimeList.<br>
-                        <span style="font-size:12px; color:rgba(255,255,255,0.3);">${e.message || 'Periksa Client ID atau koneksi internet.'}</span>
-                    </div>`;
-            }
-        }
+document.getElementById('q').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') searchAnime();
+});
 
-        // ================================================================
-        //  SEARCH (MAL)
-        // ================================================================
-        async function searchAnime() {
-            const q = document.getElementById('q').value.trim();
-            if (!q) return loadTop();
-            try {
-                const data = await malFetch('/anime?q=' + encodeURIComponent(q) + '&limit=8');
-                const animeList = data.data.map(item => mapMALAnime(item.node));
-                render(animeList);
-            } catch (e) {
-                console.error('Search error:', e);
-                render([]);
-                // Tampilkan error di grid (opsional)
-                grid.innerHTML = `
-                    <div style="grid-column:1/-1; text-align:center; padding:20px 0; color:#f87171; font-size:13px;">
-                        <i class="fas fa-exclamation-circle"></i> ${e.message || 'Gagal mencari anime.'}
-                    </div>`;
-            }
-        }
+// ================================================================
+// PLAYER
+// ================================================================
+function openPlayer(anime) {
+  document.getElementById('dashboardView').style.display = 'none';
+  const playerView = document.getElementById('playerView');
+  playerView.classList.add('active');
+  playerView.style.display = 'flex';
 
-        document.getElementById('q').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') searchAnime();
-        });
+  document.getElementById('playerTitle').textContent = anime.title;
+  document.getElementById('playerAnimeTitle').textContent = anime.title;
+  const synopsis = anime.synopsis || 'Tidak ada sinopsis.';
+  document.getElementById('playerSynopsis').textContent = synopsis.length > 300 ? synopsis.slice(0, 300) + '...' : synopsis;
+  document.getElementById('playerScore').textContent = anime.score || 'N/A';
+  document.getElementById('playerYear').textContent = anime.year || '?';
+  document.getElementById('playerDuration').textContent = anime.duration || '?';
 
-        // ================================================================
-        //  OPEN / CLOSE PLAYER
-        // ================================================================
-        function openPlayer(anime) {
-            document.getElementById('dashboardView').style.display = 'none';
-            const playerView = document.getElementById('playerView');
-            playerView.classList.add('active');
-            playerView.style.display = 'flex';
+  // Gunakan trailer dari MAL? Tidak tersedia, jadi fallback ke video contoh
+  const videoUrl = 'https://www.youtube.com/embed/dQw4w9WgXcQ';
+  document.getElementById('playerIframe').src = videoUrl;
 
-            // Set judul
-            document.getElementById('playerTitle').textContent = anime.title;
-            document.getElementById('playerAnimeTitle').textContent = anime.title;
+  const totalEp = anime.episodes || 12;
+  renderEpisodes(totalEp, videoUrl);
+}
 
-            // Sinopsis
-            const synopsis = anime.synopsis || 'Tidak ada sinopsis.';
-            document.getElementById('playerSynopsis').textContent = synopsis.length > 300 ? synopsis.slice(0, 300) + '...' :
-                synopsis;
+function closePlayer() {
+  document.getElementById('playerView').classList.remove('active');
+  document.getElementById('playerView').style.display = 'none';
+  document.getElementById('dashboardView').style.display = 'block';
+  document.getElementById('playerIframe').src = '';
+}
 
-            // Meta
-            document.getElementById('playerScore').textContent = anime.score || 'N/A';
-            document.getElementById('playerYear').textContent = anime.year || '?';
-            document.getElementById('playerDuration').textContent = anime.duration || '?';
+function renderEpisodes(total, currentVideoUrl) {
+  const container = document.getElementById('episodeGrid');
+  container.innerHTML = '';
+  for (let i = 1; i <= total; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'episode-btn';
+    if (i === 1 && currentVideoUrl) btn.classList.add('active-ep');
+    btn.innerHTML = `<i class="fas fa-play-circle"></i> Episode ${i}`;
+    btn.onclick = function() {
+      document.getElementById('playerIframe').src = currentVideoUrl || 'https://www.youtube.com/embed/dQw4w9WgXcQ';
+      document.querySelectorAll('.episode-btn').forEach(b => b.classList.remove('active-ep'));
+      this.classList.add('active-ep');
+    };
+    container.appendChild(btn);
+  }
+}
 
-            // Trailer tidak tersedia di MAL API, gunakan fallback
-            const videoUrl = 'https://www.youtube.com/embed/dQw4w9WgXcQ';
-            document.getElementById('playerIframe').src = videoUrl;
+// ================================================================
+// DROPDOWN & NAV (tetap sama)
+// ================================================================
+document.getElementById('notifToggle').addEventListener('click', function(e) {
+  e.stopPropagation();
+  document.getElementById('notifDropdown').classList.toggle('open');
+  document.getElementById('menuDropdown').classList.remove('open');
+});
+document.getElementById('menuToggle').addEventListener('click', function(e) {
+  e.stopPropagation();
+  document.getElementById('menuDropdown').classList.toggle('open');
+  document.getElementById('notifDropdown').classList.remove('open');
+});
+document.addEventListener('click', function() {
+  document.getElementById('notifDropdown').classList.remove('open');
+  document.getElementById('menuDropdown').classList.remove('open');
+});
+document.getElementById('markAllRead')?.addEventListener('click', function() {
+  document.querySelectorAll('.notif-item').forEach(el => el.style.opacity = '0.3');
+});
+document.querySelectorAll('.menu-item[data-action]').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const action = this.dataset.action;
+    if (action === 'logout') { if (confirm('Yakin ingin logout?')) alert('Logout berhasil!'); }
+    else if (action === 'profile') alert('Buka halaman Profile');
+    else if (action === 'settings') alert('Buka Pengaturan');
+    else if (action === 'characters') alert('Buka Karakter');
+    else if (action === 'dashboard') alert('Buka Dashboard');
+    else if (action === 'analytics') alert('Buka Analytics');
+    document.getElementById('menuDropdown').classList.remove('open');
+  });
+});
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', function(e) {
+    if (this.tagName === 'A') return;
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+function openDonate() { alert('Fitur donasi sedang dalam pengembangan. Terima kasih!'); }
 
-            // Episode list
-            const totalEp = anime.episodes || 12;
-            renderEpisodes(totalEp, videoUrl);
-        }
-
-        function closePlayer() {
-            document.getElementById('playerView').classList.remove('active');
-            document.getElementById('playerView').style.display = 'none';
-            document.getElementById('dashboardView').style.display = 'block';
-            document.getElementById('playerIframe').src = '';
-        }
-
-        // ================================================================
-        //  RENDER EPISODE LIST
-        // ================================================================
-        function renderEpisodes(total, currentVideoUrl) {
-            const container = document.getElementById('episodeGrid');
-            container.innerHTML = '';
-
-            for (let i = 1; i <= total; i++) {
-                const btn = document.createElement('button');
-                btn.className = 'episode-btn';
-                if (i === 1 && currentVideoUrl) {
-                    btn.classList.add('active-ep');
-                }
-                btn.innerHTML = `<i class="fas fa-play-circle"></i> Episode ${i}`;
-                btn.onclick = function() {
-                    document.getElementById('playerIframe').src = currentVideoUrl || 'https://www.youtube.com/embed/dQw4w9WgXcQ';
-                    document.querySelectorAll('.episode-btn').forEach(b => b.classList.remove('active-ep'));
-                    this.classList.add('active-ep');
-                };
-                container.appendChild(btn);
-            }
-        }
-
-        // ================================================================
-        //  DROPDOWN TOGGLES
-        // ================================================================
-        document.getElementById('notifToggle').addEventListener('click', function(e) {
-            e.stopPropagation();
-            document.getElementById('notifDropdown').classList.toggle('open');
-            document.getElementById('menuDropdown').classList.remove('open');
-        });
-
-        document.getElementById('menuToggle').addEventListener('click', function(e) {
-            e.stopPropagation();
-            document.getElementById('menuDropdown').classList.toggle('open');
-            document.getElementById('notifDropdown').classList.remove('open');
-        });
-
-        document.addEventListener('click', function() {
-            document.getElementById('notifDropdown').classList.remove('open');
-            document.getElementById('menuDropdown').classList.remove('open');
-        });
-
-        document.getElementById('markAllRead')?.addEventListener('click', function() {
-            document.querySelectorAll('.notif-item').forEach(el => el.style.opacity = '0.3');
-        });
-
-        // Menu actions
-        document.querySelectorAll('.menu-item[data-action]').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const action = this.dataset.action;
-                if (action === 'logout') {
-                    if (confirm('Yakin ingin logout?')) alert('Logout berhasil!');
-                } else if (action === 'profile') {
-                    alert('Buka halaman Profile');
-                } else if (action === 'settings') {
-                    alert('Buka Pengaturan');
-                } else if (action === 'characters') {
-                    alert('Buka Karakter');
-                } else if (action === 'dashboard') {
-                    alert('Buka Dashboard');
-                } else if (action === 'analytics') {
-                    alert('Buka Analytics');
-                }
-                document.getElementById('menuDropdown').classList.remove('open');
-            });
-        });
-
-        // Nav active
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function(e) {
-                if (this.tagName === 'A') return;
-                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                this.classList.add('active');
-            });
-        });
-
-        function openDonate() {
-            alert('Fitur donasi sedang dalam pengembangan. Terima kasih!');
-        }
-
-        // ================================================================
-        //  INIT
-        // ================================================================
-        loadTop();
-        document.getElementById('dashboardView').style.display = 'block';
-        document.getElementById('playerView').style.display = 'none';
-        document.getElementById('playerView').classList.remove('active');
-    </script>
+// ================================================================
+// INIT
+// ================================================================
+loadTop();
+document.getElementById('dashboardView').style.display = 'block';
+document.getElementById('playerView').style.display = 'none';
+document.getElementById('playerView').classList.remove('active');
+</script>
 </body>
 </html>
