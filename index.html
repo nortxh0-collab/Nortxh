@@ -1043,17 +1043,21 @@ function mapMALAnime(node) {
   return {
     id: node.id,
     title: node.title,
-    score: node.mean || 'N/A',
-    episodes: node.num_episodes || 0,
-    year: node.start_date ? new Date(node.start_date).getFullYear() : '?',
-    duration: node.media_type || '?',
-    synopsis: node.synopsis || 'Tidak ada sinopsis.',
+    score: node.mean ?? 'N/A',
+    episodes: node.num_episodes ?? '?',
+    year: node.start_date
+      ? new Date(node.start_date).getFullYear()
+      : '?',
+    duration: node.media_type ?? '?',
+    synopsis: node.synopsis ?? 'Tidak ada sinopsis.',
     images: {
       jpg: {
-        large_image_url: node.main_picture?.large || node.main_picture?.medium || ''
+        large_image_url:
+          node.main_picture?.large ||
+          node.main_picture?.medium ||
+          ''
       }
-    },
-    trailer: null
+    }
   };
 }
 
@@ -1093,7 +1097,9 @@ function render(list) {
 // ================================================================
 async function loadTop() {
   try {
-    const data = await malFetch('/anime/ranking?ranking_type=all&limit=8');
+    const data = await malFetch(
+    '/anime/ranking?ranking_type=all&limit=8&fields=id,title,main_picture,mean,synopsis,num_episodes,start_date,media_type'
+);
     const animeList = data.data.map(item => mapMALAnime(item.node));
     render(animeList);
   } catch (e) {
@@ -1119,7 +1125,9 @@ async function searchAnime() {
   const q = document.getElementById('q').value.trim();
   if (!q) return loadTop();
   try {
-    const data = await malFetch(`/anime?q=${encodeURIComponent(q)}&limit=8`);
+    const data = await malFetch(
+    `/anime?q=${encodeURIComponent(q)}&limit=8&fields=id,title,main_picture,mean,synopsis,num_episodes,start_date,media_type`
+);
     const animeList = data.data.map(item => mapMALAnime(item.node));
     render(animeList);
   } catch (e) {
